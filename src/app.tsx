@@ -1,4 +1,11 @@
-import { FileDown, Filter, MoreHorizontal, Plus, Search } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Filter,
+  FileDown,
+  MoreHorizontal,
+  Loader2,
+} from "lucide-react";
 import { Header } from "./components/header";
 import { Tabs } from "./components/tabs";
 import { Button } from "./components/ui/button";
@@ -11,10 +18,12 @@ import {
   TableHeader,
   TableRow,
 } from "./components/ui/table";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Pagination } from "./components/pagination";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { useState } from "react";
+import { FormEvent, useState } from "react";
+import * as Dialog from "@radix-ui/react-dialog";
+import { CreateTagForm } from "./components/create-tag-form";
 
 export interface TagResponse {
   first: number;
@@ -28,6 +37,7 @@ export interface TagResponse {
 
 export interface Tag {
   title: string;
+  slug: string;
   amountOfVideos: number;
   id: string;
 }
@@ -35,11 +45,16 @@ export interface Tag {
 export function App() {
   const [searchParams, setSearchParams] = useSearchParams();
   const urlFilter = searchParams.get("filter") ?? "";
+
   const [filter, setFilter] = useState(urlFilter);
 
   const page = searchParams.get("page") ? Number(searchParams.get("page")) : 1;
 
-  const { data: tagsResponse, isLoading } = useQuery<TagResponse>({
+  const {
+    data: tagsResponse,
+    isLoading,
+    isFetching,
+  } = useQuery<TagResponse>({
     queryKey: ["get-tags", urlFilter, page],
     queryFn: async () => {
       const response = await fetch(
@@ -52,47 +67,76 @@ export function App() {
     placeholderData: keepPreviousData,
   });
 
-  if (isLoading) {
-    return null;
-  }
+  function handleFilter(event: FormEvent) {
+    event.preventDefault();
 
-  function handleFilter() {
     setSearchParams((params) => {
       params.set("page", "1");
       params.set("filter", filter);
+
       return params;
     });
   }
 
+  if (isLoading) {
+    return null;
+  }
+
   return (
-    <div className="py-10 spac-y-8">
+    <div className="py-10 space-y-8">
       <div>
-        <Header /> <Tabs />
+        <Header />
+        <Tabs />
       </div>
       <main className="max-w-6xl mx-auto space-y-5">
-        <div className="flex items-center gap-3 mt-5">
+        <div className="flex items-center gap-3">
           <h1 className="text-xl font-bold">Tags</h1>
-          <Button variant="primary">
-            <Plus className="size-3" />
-            Create new
-          </Button>
+
+          <Dialog.Root>
+            <Dialog.Trigger asChild>
+              <Button variant="primary">
+                <Plus className="size-3" />
+                Create new
+              </Button>
+            </Dialog.Trigger>
+
+            <Dialog.Portal>
+              <Dialog.Overlay className="fixed inset-0 bg-black/70" />
+              <Dialog.Content className="fixed space-y-10 p-10 right-0 top-0 bottom-0 h-screen min-w-[320px] z-10 bg-zinc-950 border-l border-zinc-900">
+                <div className="space-y-3">
+                  <Dialog.Title className="text-xl font-bold">
+                    Create tag
+                  </Dialog.Title>
+                  <Dialog.Description className="text-sm text-zinc-500">
+                    Tags can be used to group videos about similar concepts.
+                  </Dialog.Description>
+                </div>
+
+                <CreateTagForm />
+              </Dialog.Content>
+            </Dialog.Portal>
+          </Dialog.Root>
+
+          {isFetching && (
+            <Loader2 className="size-4 animate-spin text-zinc-500" />
+          )}
         </div>
 
         <div className="flex items-center justify-between">
-          <div className="flex item-center">
+          <form onSubmit={handleFilter} className="flex items-center gap-2">
             <Input variant="filter">
-              <Search />
+              <Search className="size-3" />
               <Control
                 placeholder="Search tags..."
                 onChange={(e) => setFilter(e.target.value)}
                 value={filter}
               />
             </Input>
-            <Button onClick={handleFilter}>
+            <Button type="submit">
               <Filter className="size-3" />
-              Filter
+              Apply filters
             </Button>
-          </div>
+          </form>
 
           <Button>
             <FileDown className="size-3" />
@@ -117,13 +161,13 @@ export function App() {
                   <TableCell>
                     <div className="flex flex-col gap-0.5">
                       <span className="font-medium">{tag.title}</span>
-                      <span className="text-xs text-zinc-500">{tag.id}</span>
+                      <span className="text-xs text-zinc-500">{tag.slug}</span>
                     </div>
                   </TableCell>
                   <TableCell className="text-zinc-300">
                     {tag.amountOfVideos} video(s)
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-right">
                     <Button size="icon">
                       <MoreHorizontal className="size-4" />
                     </Button>
